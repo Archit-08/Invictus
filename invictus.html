@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invictus - Smart Recruiter Portal</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- PDF.js for text extraction -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #060911; color: #f8fafc; }
+        
+        .glass { background: rgba(15, 23, 42, 0.75); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.08); }
+        .gold-border { border: 1px solid rgba(245, 158, 11, 0.4); }
+
+        /* Keyframe Animations */
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes floatSlow {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-10px) rotate(1deg); }
+        }
+        @keyframes pulseGlow {
+            0%, 100% { opacity: 0.3; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(1.08); }
+        }
+        @keyframes shine {
+            100% { left: 125%; }
+        }
+
+        .animate-fade-in { animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        .animate-float { animation: floatSlow 6s ease-in-out infinite; }
+        .animate-pulse-glow { animation: pulseGlow 5s ease-in-out infinite; }
+        
+        /* Button Micro-Animations */
+        .btn-animated {
+            position: relative;
+            overflow: hidden;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .btn-animated:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px -5px rgba(79, 70, 229, 0.4);
+        }
+        .btn-animated:active {
+            transform: translateY(1px) scale(0.97);
+        }
+        .btn-animated::after {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -60%;
+            width: 20%;
+            height: 200%;
+            background: rgba(255, 255, 255, 0.2);
+            transform: rotate(30deg);
+        }
+        .btn-animated:hover::after {
+            animation: shine 0.75s ease-in-out;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between relative overflow-x-hidden">
+
+    <!-- Ambient Glowing Orbs -->
+    <div class="fixed top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-indigo-600/15 rounded-full blur-[140px] pointer-events-none animate-pulse-glow z-0"></div>
+    <div class="fixed top-1/3 right-10 w-[400px] h-[400px] bg-violet-600/10 rounded-full blur-[120px] pointer-events-none z-0"></div>
+
+    <!-- Top Navigation Header -->
+    <header class="border-b border-slate-800/80 bg-slate-950/80 backdrop-blur-md p-4 sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto flex justify-between items-center relative z-10">
+            <div class="flex items-center space-x-3">
+                <button id="global-back-btn" onclick="goBack()" class="hidden btn-animated px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-700/60 text-slate-300 hover:text-white rounded-xl text-xs font-bold flex items-center space-x-1">
+                    <i data-lucide="arrow-left" class="w-4 h-4"></i>
+                    <span>Back</span>
+                </button>
+                <div class="flex items-center space-x-3 cursor-pointer group" onclick="showLanding()">
+                    <div class="bg-gradient-to-tr from-indigo-600 to-violet-500 p-2 rounded-xl text-white shadow-lg shadow-indigo-500/30 group-hover:scale-110 transition-transform duration-300">
+                        <i data-lucide="sparkles" class="w-5 h-5"></i>
+                    </div>
+                    <span class="text-xl font-extrabold text-white tracking-tight">Invictus <span class="text-xs text-indigo-400 font-mono font-medium px-2 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/20">Pro</span></span>
+                </div>
+            </div>
+            <div id="nav-actions" class="flex items-center space-x-3"></div>
+        </div>
+    </header>
+
+    <!-- Global Toast Alert -->
+    <div id="toast" class="hidden fixed bottom-5 right-5 z-50 bg-slate-900 text-white px-5 py-3 rounded-xl shadow-2xl flex items-center space-x-2 border border-slate-700 animate-fade-in">
+        <i data-lucide="info" class="w-4 h-4 text-indigo-400"></i>
+        <span id="toast-message" class="text-xs font-semibold"></span>
+    </div>
+
+    <!-- Main Container -->
+    <main class="max-w-7xl mx-auto w-full p-6 flex-grow relative z-10">
+        
+        <!-- 1. LANDING PAGE VIEW -->
+        <div id="landing-view" class="space-y-16 py-8 animate-fade-in">
+            <div class="text-center max-w-4xl mx-auto space-y-6">
+                <div class="inline-flex items-center space-x-2 text-xs font-bold uppercase tracking-widest text-indigo-400 bg-indigo-500/10 px-4 py-2 rounded-full border border-indigo-500/20 shadow-inner">
+                    <i data-lucide="zap" class="w-3.5 h-3.5 text-indigo-400 animate-bounce"></i>
+                    <span>Instant Candidate Evaluation</span>
+                </div>
+                
+                <h1 class="text-5xl sm:text-7xl font-black text-white leading-tight tracking-tight">
+                    Shortlist Top Candidates <br>
+                    <span class="bg-gradient-to-r from-indigo-400 via-violet-300 to-pink-400 bg-clip-text text-transparent">In Seconds, Not Days</span>
+                </h1>
+                
+                <p class="text-slate-400 text-base sm:text-lg max-w-2xl mx-auto leading-relaxed">
+                    Automate resume extraction, match applicant tech skills with job specifications instantly, and track hiring pipelines with isolated user sessions.
+                </p>
+
+                <!-- Animated Action Buttons -->
+                <div class="flex justify-center space-x-4 pt-4">
+                    <button onclick="showAuth('signup')" class="btn-animated px-8 py-4 bg-indigo-600 text-white font-bold rounded-2xl text-xs transition-all flex items-center space-x-2 shadow-xl shadow-indigo-600/30">
+                        <span>Get Started Free</span>
+                        <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                    </button>
+                    <button onclick="showAuth('signin')" class="btn-animated px-8 py-4 glass hover:bg-slate-800 text-slate-300 font-bold rounded-2xl text-xs transition-all border border-slate-700/60">
+                        Sign In Workspace
+                    </button>
+                </div>
+
+                <!-- Stats Counters -->
+                <div class="pt-8 grid grid-cols-3 max-w-xl mx-auto text-center divide-x divide-slate-800">
+                    <div>
+                        <div class="text-2xl font-black text-indigo-400">99.4%</div>
+                        <div class="text-[11px] text-slate-500 uppercase tracking-wider font-semibold">Skill Match Accuracy</div>
+                    </div>
+                    <div>
+                        <div class="text-2xl font-black text-indigo-400">&lt; 10s</div>
+                        <div class="text-[11px] text-slate-500 uppercase tracking-wider font-semibold">Batch Processing</div>
+                    </div>
+                    <div>
+                        <div class="text-2xl font-black text-indigo-400">100%</div>
+                        <div class="text-[11px] text-slate-500 uppercase tracking-wider font-semibold">Client Privacy</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Floating Interactive Card Feature Preview -->
+            <div class="max-w-4xl mx-auto glass p-6 sm:p-8 rounded-3xl border border-slate-800 shadow-2xl space-y-4 animate-float">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-4">
+                    <div class="flex items-center space-x-2">
+                        <div class="w-3 h-3 rounded-full bg-rose-500"></div>
+                        <div class="w-3 h-3 rounded-full bg-amber-500"></div>
+                        <div class="w-3 h-3 rounded-full bg-emerald-500"></div>
+                        <span class="text-xs text-slate-500 ml-2 font-mono">live_shortlisting_engine.preview</span>
+                    </div>
+                    <span class="text-[10px] bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-md font-mono">Live Demo Mock</span>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                    <div class="bg-slate-950/80 p-4 rounded-2xl space-y-2 border border-slate-800/80">
+                        <div class="text-indigo-400 font-bold">1. Input Requirements</div>
+                        <div class="text-slate-400 text-[11px] italic font-mono">"Looking for Senior Full Stack Engineer skilled in React, Node.js, Python, AWS..."</div>
+                    </div>
+                    <div class="bg-indigo-950/30 p-4 rounded-2xl space-y-2 border border-indigo-500/20">
+                        <div class="text-amber-400 font-bold flex justify-between">
+                            <span>🥇 Top Match</span>
+                            <span>98% Score</span>
+                        </div>
+                        <div class="text-slate-300 font-semibold">Alex Rivera - Senior Developer</div>
+                        <div class="flex gap-1 flex-wrap">
+                            <span class="bg-indigo-500/20 text-indigo-300 px-1.5 py-0.5 rounded text-[10px]">+ React</span>
+                            <span class="bg-indigo-500/20 text-indigo-300 px-1.5 py-0.5 rounded text-[10px]">+ Node.js</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Features Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 pt-6">
+                <div class="glass p-6 rounded-3xl space-y-3 hover:-translate-y-2 transition-all duration-300 hover:border-indigo-500/40 group">
+                    <div class="w-12 h-12 rounded-2xl bg-indigo-500/10 flex items-center justify-center text-indigo-400 group-hover:scale-110 transition-transform">
+                        <i data-lucide="zap" class="w-6 h-6"></i>
+                    </div>
+                    <h3 class="font-bold text-white text-base">Instant Processing</h3>
+                    <p class="text-xs text-slate-400 leading-relaxed">Upload PDF/TXT resumes in bulk and automatically parse tech skill tags.</p>
+                </div>
+                <div class="glass p-6 rounded-3xl space-y-3 hover:-translate-y-2 transition-all duration-300 hover:border-emerald-500/40 group">
+                    <div class="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-400 group-hover:scale-110 transition-transform">
+                        <i data-lucide="shield-check" class="w-6 h-6"></i>
+                    </div>
+                    <h3 class="font-bold text-white text-base">Isolated Workspace</h3>
+                    <p class="text-xs text-slate-400 leading-relaxed">Saved profiles, ratings, and hire tags persist inside your user environment.</p>
+                </div>
+                <div class="glass p-6 rounded-3xl space-y-3 hover:-translate-y-2 transition-all duration-300 hover:border-purple-500/40 group">
+                    <div class="w-12 h-12 rounded-2xl bg-purple-500/10 flex items-center justify-center text-purple-400 group-hover:scale-110 transition-transform">
+                        <i data-lucide="bot" class="w-6 h-6"></i>
+                    </div>
+                    <h3 class="font-bold text-white text-base">HR Assistant</h3>
+                    <p class="text-xs text-slate-400 leading-relaxed">Access instant side-panel suggestions for refining job requirement skill keywords.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. AUTHENTICATION VIEW -->
+        <div id="auth-panel" class="hidden max-w-md mx-auto glass p-8 rounded-3xl space-y-6 my-12 animate-fade-in relative shadow-2xl">
+            <button onclick="goBack()" class="btn-animated text-xs text-slate-400 hover:text-white flex items-center space-x-1 px-2 py-1 rounded-lg">
+                <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i>
+                <span>Back to Home</span>
+            </button>
+            <div class="text-center space-y-1 pt-2">
+                <h2 id="auth-title" class="text-2xl font-bold text-white">HR Access Portal</h2>
+                <p class="text-xs text-slate-400">Authenticated Cloud Workspaces</p>
+            </div>
+            
+            <div class="flex border-b border-slate-800 text-xs">
+                <button onclick="setAuthMode('signin')" id="tab-signin" class="flex-1 py-2 font-bold border-b-2 border-indigo-500 text-indigo-400 transition-all">Sign In</button>
+                <button onclick="setAuthMode('signup')" id="tab-signup" class="flex-1 py-2 font-bold text-slate-500 transition-all">Create Account</button>
+            </div>
+
+            <form id="auth-form" onsubmit="handleAuth(event)" class="space-y-4">
+                <div id="name-field" class="hidden">
+                    <label class="text-xs text-slate-400 font-medium">Full Name</label>
+                    <input type="text" id="auth-name" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all">
+                </div>
+                <div>
+                    <label class="text-xs text-slate-400 font-medium">Work Email</label>
+                    <input type="email" id="auth-email" required class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all">
+                </div>
+                <div>
+                    <label class="text-xs text-slate-400 font-medium">Password</label>
+                    <input type="password" id="auth-password" required class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all">
+                </div>
+                <button type="submit" class="w-full btn-animated py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs shadow-lg shadow-indigo-600/20">Access Workspace</button>
+            </form>
+        </div>
+
+        <!-- 3. MAIN WORKSPACE DASHBOARD -->
+        <div id="workspace-panel" class="hidden space-y-8 animate-fade-in">
+            <div class="flex justify-between items-center bg-slate-900/40 p-3 rounded-2xl border border-slate-800">
+                <button onclick="goBack()" class="btn-animated text-xs text-slate-400 hover:text-indigo-400 font-bold flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-slate-900">
+                    <i data-lucide="arrow-left" class="w-4 h-4"></i>
+                    <span>Back to Overview</span>
+                </button>
+                <div class="flex items-center space-x-3">
+                    <button onclick="toggleAssistantDrawer()" class="btn-animated px-3 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 rounded-xl text-xs font-bold flex items-center space-x-1.5">
+                        <i data-lucide="bot" class="w-4 h-4"></i>
+                        <span>HR Assistant Panel</span>
+                    </button>
+                    <span class="text-[11px] text-slate-500 font-medium">Active Session</span>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Step 1: Job Description PDF Upload -->
+                <div class="glass p-6 rounded-3xl space-y-4 flex flex-col justify-between hover:border-slate-700 transition-all">
+                    <div>
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="font-bold text-base text-indigo-300 flex items-center space-x-2">
+                                <i data-lucide="file-text" class="w-4 h-4"></i>
+                                <span>1. Job Description Upload</span>
+                            </h3>
+                            <span id="jd-count" class="text-[10px] text-slate-500">0 words parsed</span>
+                        </div>
+                        <div onclick="document.getElementById('jd-file-input').click()" class="border-2 border-dashed border-slate-800 hover:border-indigo-500/50 rounded-2xl p-6 text-center cursor-pointer transition-all hover:bg-slate-900/40 bg-slate-950/40 group">
+                            <input type="file" id="jd-file-input" accept=".pdf,.txt" class="hidden" onchange="handleJDUpload(event)">
+                            <i data-lucide="file-up" class="w-8 h-8 text-indigo-400 mx-auto mb-2 group-hover:scale-110 transition-transform"></i>
+                            <p class="text-xs font-semibold text-slate-300">Upload Job Description (.pdf / .txt)</p>
+                            <p class="text-[10px] text-slate-500 mt-1">Skills extracted automatically from requirements</p>
+                        </div>
+                        <div id="jd-file-display" class="mt-4 text-xs"></div>
+                    </div>
+                    <div class="flex justify-between items-center pt-2 border-t border-slate-800">
+                        <button onclick="clearCloudJD()" class="btn-animated text-xs text-rose-400 hover:underline px-2 py-1">Clear JD</button>
+                        <button onclick="toggleAssistantDrawer()" class="btn-animated text-xs text-indigo-400 hover:text-indigo-300 font-bold flex items-center space-x-1 px-3 py-1.5 rounded-xl glass">
+                            <i data-lucide="bot" class="w-3.5 h-3.5"></i>
+                            <span>Ask Assistant</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Step 2: Resume Queue Upload -->
+                <div class="glass p-6 rounded-3xl space-y-4 flex flex-col justify-between hover:border-slate-700 transition-all">
+                    <div>
+                        <h3 class="font-bold text-base text-indigo-300 flex items-center space-x-2 mb-4">
+                            <i data-lucide="users" class="w-4 h-4"></i>
+                            <span>2. Candidate Resume Upload</span>
+                        </h3>
+                        <div onclick="document.getElementById('resume-input').click()" class="border-2 border-dashed border-slate-800 hover:border-indigo-500/50 rounded-2xl p-6 text-center cursor-pointer transition-all hover:bg-slate-900/40 bg-slate-950/40 group">
+                            <input type="file" id="resume-input" multiple accept=".pdf,.txt" class="hidden" onchange="handleResumesUpload(event)">
+                            <i data-lucide="upload-cloud" class="w-8 h-8 text-indigo-400 mx-auto mb-2 group-hover:scale-110 transition-transform"></i>
+                            <p class="text-xs font-semibold text-slate-300">Upload candidate files (.pdf / .txt)</p>
+                            <p class="text-[10px] text-slate-500 mt-1">Files parsed locally and saved to active profile session</p>
+                        </div>
+                        <div id="resume-list" class="mt-4 max-h-24 overflow-y-auto text-xs space-y-1.5 text-slate-400"></div>
+                    </div>
+                    <div class="flex justify-between items-center pt-2 border-t border-slate-800">
+                        <button onclick="clearCloudQueue()" class="btn-animated text-xs text-rose-400 hover:underline px-2 py-1">Clear Queue</button>
+                        <span id="resume-count-badge" class="text-xs bg-slate-800 px-2.5 py-1 rounded-full text-slate-300">0 loaded</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Run Shortlisting Button -->
+            <div class="text-center">
+                <button onclick="runSmartEngine()" class="btn-animated px-8 py-4 bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-bold rounded-2xl text-xs shadow-xl shadow-indigo-600/30 inline-flex items-center space-x-2">
+                    <i data-lucide="sparkles" class="w-4 h-4"></i>
+                    <span>Execute Candidate Evaluation</span>
+                </button>
+            </div>
+
+            <!-- 4. SHORTLISTING RESULTS SECTION -->
+            <div id="results-wrapper" class="hidden space-y-8 animate-fade-in">
+                
+                <!-- Filter Tabs -->
+                <div class="flex justify-between items-center border-b border-slate-800 pb-4">
+                    <h3 class="text-xl font-bold text-white flex items-center space-x-2">
+                        <i data-lucide="award" class="w-5 h-5 text-indigo-400"></i>
+                        <span>Skill Match Evaluation Breakdown</span>
+                    </h3>
+                    <div class="flex space-x-2 text-xs">
+                        <button onclick="filterResults('all')" id="tab-filter-all" class="btn-animated px-3 py-1.5 rounded-xl font-bold bg-indigo-600 text-white">All Candidates</button>
+                        <button onclick="filterResults('top3')" id="tab-filter-top3" class="btn-animated px-3 py-1.5 rounded-xl font-bold glass text-slate-400 hover:text-white">Top 3 Insights</button>
+                        <button onclick="filterResults('hired')" id="tab-filter-hired" class="btn-animated px-3 py-1.5 rounded-xl font-bold glass text-slate-400 hover:text-white">Hired Status</button>
+                    </div>
+                </div>
+
+                <!-- TOP 3 INSIGHTS SECTION -->
+                <div id="top-3-insights-container" class="space-y-4">
+                    <h4 class="text-sm font-bold text-indigo-400 uppercase tracking-wider flex items-center space-x-2">
+                        <i data-lucide="star" class="w-4 h-4"></i>
+                        <span>Top 3 Candidate Insights</span>
+                    </h4>
+                    <div id="top-3-cards" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
+                </div>
+
+                <!-- ALL RESULTS RANKED LEADERBOARD -->
+                <div class="space-y-4">
+                    <h4 class="text-sm font-bold text-slate-400 uppercase tracking-wider">Candidate Skill Rank Leaderboard</h4>
+                    <div id="results-area" class="space-y-3"></div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 5. SIDE-PANEL HR ASSISTANT -->
+    <div id="assistant-drawer" class="fixed inset-y-0 right-0 w-80 sm:w-96 glass bg-slate-950/95 border-l border-slate-800 z-50 transform translate-x-full transition-transform duration-300 p-6 flex flex-col justify-between">
+        <div class="space-y-6">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-4">
+                <div class="flex items-center space-x-2">
+                    <i data-lucide="bot" class="w-5 h-5 text-indigo-400"></i>
+                    <h3 class="font-bold text-white">HR Assistant</h3>
+                </div>
+                <button onclick="toggleAssistantDrawer()" class="btn-animated text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 flex items-center space-x-1 text-xs">
+                    <span>Close</span>
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <div class="space-y-4 text-xs">
+                <div class="bg-indigo-500/10 border border-indigo-500/20 p-3.5 rounded-2xl text-indigo-200">
+                    👋 <strong>Hello HR Specialist!</strong> Select prompt options to optimize job requirements and score candidate skills.
+                </div>
+                <div class="space-y-2">
+                    <p class="font-bold text-slate-300">Quick Recommendations:</p>
+                    <button onclick="applyAssistantPrompt('jd')" class="btn-animated w-full text-left p-3 rounded-xl glass hover:bg-slate-800 text-slate-300 hover:text-white">💡 Optimize JD for tech skill matching</button>
+                    <button onclick="applyAssistantPrompt('weights')" class="btn-animated w-full text-left p-3 rounded-xl glass hover:bg-slate-800 text-slate-300 hover:text-white">⚖️ Best practices for scoring skill gaps</button>
+                </div>
+                <div id="assistant-response" class="p-3.5 bg-slate-900 border border-slate-800 rounded-2xl text-slate-300 min-h-[100px] text-[11px] leading-relaxed animate-fade-in">
+                    Click a prompt option above to get smart hiring advice.
+                </div>
+            </div>
+        </div>
+        <div class="text-[10px] text-slate-500 text-center">Invictus HR Engine</div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="border-t border-slate-800/80 py-4 text-center text-xs text-slate-500 relative z-10">
+        Invictus HR Engine &copy; 2026 &bull; Session Isolated Workspace
+    </footer>
+
+    <!-- Firebase SDK & Script Logic -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyD-PlaceholderKeyForClientAppOnly",
+            authDomain: "invictus-app.firebaseapp.com",
+            projectId: "invictus-app",
+            storageBucket: "invictus-app.appspot.com",
+            messagingSenderId: "1029384756",
+            appId: "1:1029384756:web:abcd1234efgh5678"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        let currentUser = null;
+        let authMode = 'signin';
+        let currentJD = { fileName: "", text: "" };
+        let currentCandidates = [];
+        let evaluatedCache = [];
+        let navigationHistory = ['landing'];
+
+        // PREDEFINED TECH & DOMAIN SKILL DATABASE FOR SKILL-BASED MATCHING
+        const KNOWN_SKILLS = [
+            "react", "react.js", "reactjs", "node", "node.js", "nodejs", "python", "java", "c++", "c#", "javascript", 
+            "typescript", "html", "css", "tailwind", "tailwind css", "bootstrap", "angular", "vue", "vue.js", "next.js", 
+            "express", "express.js", "django", "flask", "fastapi", "spring", "spring boot", "sql", "mysql", "postgresql", 
+            "postgres", "mongodb", "redis", "dynamodb", "aws", "azure", "gcp", "docker", "kubernetes", "git", "github", 
+            "gitlab", "ci/cd", "rest api", "graphql", "microservices", "testing", "jest", "cypress", "figma", "ui/ux", 
+            "agile", "scrum", "machine learning", "deep learning", "nlp", "pandas", "numpy", "tensorflow", "pytorch", 
+            "devops", "linux", "bash", "firebase", "supabase", "communication", "leadership", "problem solving"
+        ];
+
+        window.showLanding = () => {
+            navigationHistory.push('landing');
+            document.getElementById('landing-view').classList.remove('hidden');
+            document.getElementById('auth-panel').classList.add('hidden');
+            document.getElementById('workspace-panel').classList.add('hidden');
+            document.getElementById('global-back-btn').classList.add('hidden');
+            updateNavActions();
+        };
+
+        window.showAuth = (mode) => {
+            navigationHistory.push('auth');
+            document.getElementById('landing-view').classList.add('hidden');
+            document.getElementById('auth-panel').classList.remove('hidden');
+            document.getElementById('workspace-panel').classList.add('hidden');
+            document.getElementById('global-back-btn').classList.remove('hidden');
+            window.setAuthMode(mode);
+        };
+
+        window.goBack = () => {
+            if (navigationHistory.length > 1) {
+                navigationHistory.pop();
+                const previous = navigationHistory[navigationHistory.length - 1];
+                if (previous === 'landing') window.showLanding();
+                else if (previous === 'auth') window.showAuth(authMode);
+                else if (previous === 'workspace') window.showWorkspaceView();
+                else window.showLanding();
+            } else {
+                window.showLanding();
+            }
+        };
+
+        window.setAuthMode = (mode) => {
+            authMode = mode;
+            document.getElementById('name-field').classList.toggle('hidden', mode === 'signin');
+            document.getElementById('auth-title').innerText = mode === 'signin' ? 'HR Access Portal' : 'Create HR Account';
+            document.getElementById('tab-signin').className = mode === 'signin' ? 'flex-1 py-2 font-bold border-b-2 border-indigo-500 text-indigo-400 transition-all' : 'flex-1 py-2 font-bold text-slate-500 transition-all';
+            document.getElementById('tab-signup').className = mode === 'signup' ? 'flex-1 py-2 font-bold border-b-2 border-indigo-500 text-indigo-400 transition-all' : 'flex-1 py-2 font-bold text-slate-500 transition-all';
+        };
+
+        function updateNavActions() {
+            const nav = document.getElementById('nav-actions');
+            const activeSession = localStorage.getItem('inv_active_session') || currentUser;
+
+            if (activeSession) {
+                nav.innerHTML = `
+                    <button onclick="showWorkspaceView()" class="btn-animated px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl shadow-md shadow-indigo-600/20">Go to Workspace</button>
+                    <button onclick="logoutSession()" class="btn-animated px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 text-xs font-bold rounded-xl">Sign Out</button>
+                `;
+            } else {
+                nav.innerHTML = `
+                    <button onclick="showAuth('signin')" class="btn-animated text-xs text-slate-300 font-bold hover:text-white px-3 py-1.5">Sign In</button>
+                    <button onclick="showAuth('signup')" class="btn-animated px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl shadow-md shadow-indigo-600/20">Get Started</button>
+                `;
+            }
+        }
+
+        window.showWorkspaceView = () => {
+            navigationHistory.push('workspace');
+            document.getElementById('landing-view').classList.add('hidden');
+            document.getElementById('auth-panel').classList.add('hidden');
+            document.getElementById('workspace-panel').classList.remove('hidden');
+            document.getElementById('global-back-btn').classList.remove('hidden');
+        };
+
+        window.handleAuth = async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('auth-email').value.trim();
+            const password = document.getElementById('auth-password').value;
+
+            try {
+                if (authMode === 'signup') {
+                    const res = await createUserWithEmailAndPassword(auth, email, password);
+                    currentUser = res.user;
+                    await setDoc(doc(db, "users", currentUser.uid), { email, jdData: { fileName: "", text: "" }, candidates: [] });
+                } else {
+                    const res = await signInWithEmailAndPassword(auth, email, password);
+                    currentUser = res.user;
+                }
+                showToast("Authenticated successfully.");
+            } catch (err) {
+                handleFallbackLocalAuth(email, password, authMode);
+            }
+        };
+
+        function handleFallbackLocalAuth(email, password, mode) {
+            const users = JSON.parse(localStorage.getItem('inv_users_db') || '{}');
+            const userKey = email.toLowerCase();
+
+            if (mode === 'signup') {
+                if (users[userKey]) return alert("Account exists. Please sign in.");
+                users[userKey] = { password, jdData: { fileName: "", text: "" }, candidates: [] };
+                localStorage.setItem('inv_users_db', JSON.stringify(users));
+                localStorage.setItem('inv_active_session', userKey);
+                loadIsolatedWorkspace(users[userKey]);
+            } else {
+                if (!users[userKey] || users[userKey].password !== password) return alert("Invalid credentials.");
+                localStorage.setItem('inv_active_session', userKey);
+                loadIsolatedWorkspace(users[userKey]);
+            }
+            showToast("Logged in successfully.");
+        }
+
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                currentUser = user;
+                const snap = await getDoc(doc(db, "users", user.uid));
+                loadIsolatedWorkspace(snap.exists() ? snap.data() : { jdData: { fileName: "", text: "" }, candidates: [] });
+            } else {
+                const activeSession = localStorage.getItem('inv_active_session');
+                const users = JSON.parse(localStorage.getItem('inv_users_db') || '{}');
+                if (activeSession && users[activeSession]) {
+                    loadIsolatedWorkspace(users[activeSession]);
+                } else {
+                    showLanding();
+                }
+            }
+        });
+
+        function loadIsolatedWorkspace(userData) {
+            showWorkspaceView();
+            updateNavActions();
+
+            currentJD = userData.jdData || (typeof userData.jdText === 'string' ? { fileName: "Saved criteria", text: userData.jdText } : { fileName: "", text: "" });
+            currentCandidates = userData.candidates || [];
+            document.getElementById('results-wrapper').classList.add('hidden');
+            
+            renderJDDisplay();
+            renderResumeList();
+        }
+
+        window.logoutSession = () => {
+            signOut(auth).catch(() => {});
+            localStorage.removeItem('inv_active_session');
+            currentCandidates = [];
+            currentJD = { fileName: "", text: "" };
+            showLanding();
+            showToast("Logged out successfully.");
+        };
+
+        // JOB DESCRIPTION FILE UPLOAD LOGIC
+        window.handleJDUpload = async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            let text = "";
+            if (file.name.endsWith('.pdf')) {
+                const buf = await file.arrayBuffer();
+                const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    const page = await pdf.getPage(i);
+                    const content = await page.getTextContent();
+                    text += content.items.map(item => item.str).join(" ") + " ";
+                }
+            } else {
+                text = await file.text();
+            }
+
+            currentJD = { fileName: file.name, text: text };
+            await syncJDState();
+            renderJDDisplay();
+            showToast("Job Description file parsed successfully.");
+        };
+
+        async function syncJDState() {
+            if (currentUser) {
+                await updateDoc(doc(db, "users", currentUser.uid), { jdData: currentJD });
+            } else {
+                const activeSession = localStorage.getItem('inv_active_session');
+                const users = JSON.parse(localStorage.getItem('inv_users_db') || '{}');
+                if (users[activeSession]) {
+                    users[activeSession].jdData = currentJD;
+                    localStorage.setItem('inv_users_db', JSON.stringify(users));
+                }
+            }
+        }
+
+        function renderJDDisplay() {
+            const countElem = document.getElementById('jd-count');
+            const displayElem = document.getElementById('jd-file-display');
+
+            const words = currentJD.text.trim() ? currentJD.text.trim().split(/\s+/).length : 0;
+            countElem.innerText = `${words} words parsed`;
+
+            if (!currentJD.fileName && !currentJD.text) {
+                displayElem.innerHTML = `<p class="text-slate-500 italic text-center py-2">No Job Description file uploaded.</p>`;
+                return;
+            }
+
+            displayElem.innerHTML = `
+                <div class="flex items-center justify-between bg-slate-950 p-2.5 rounded-xl border border-indigo-500/30 animate-fade-in">
+                    <div class="flex items-center space-x-2 truncate">
+                        <i data-lucide="file-check" class="w-4 h-4 text-emerald-400 flex-shrink-0"></i>
+                        <span class="truncate font-medium text-slate-200">${currentJD.fileName || "Uploaded Document"}</span>
+                    </div>
+                    <span class="text-[10px] bg-indigo-500/20 text-indigo-300 font-mono px-2 py-0.5 rounded-md">Loaded</span>
+                </div>
+            `;
+            lucide.createIcons();
+        }
+
+        window.clearCloudJD = async () => {
+            currentJD = { fileName: "", text: "" };
+            await syncJDState();
+            renderJDDisplay();
+            document.getElementById('jd-file-input').value = "";
+            showToast("Job Description cleared.");
+        };
+
+        window.handleResumesUpload = async (e) => {
+            const files = Array.from(e.target.files);
+            if (!files.length) return;
+
+            for (let f of files) {
+                let text = "";
+                if (f.name.endsWith('.pdf')) {
+                    const buf = await f.arrayBuffer();
+                    const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+                    for (let i = 1; i <= pdf.numPages; i++) {
+                        const page = await pdf.getPage(i);
+                        const content = await page.getTextContent();
+                        text += content.items.map(item => item.str).join(" ") + " ";
+                    }
+                } else {
+                    text = await f.text();
+                }
+
+                currentCandidates.push({
+                    id: 'cand_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+                    fileName: f.name,
+                    text: text,
+                    hired: false
+                });
+            }
+
+            await syncCandidatesState();
+            renderResumeList();
+            showToast(`Uploaded ${files.length} candidate file(s).`);
+        };
+
+        async function syncCandidatesState() {
+            if (currentUser) {
+                await updateDoc(doc(db, "users", currentUser.uid), { candidates: currentCandidates });
+            } else {
+                const activeSession = localStorage.getItem('inv_active_session');
+                const users = JSON.parse(localStorage.getItem('inv_users_db') || '{}');
+                if (users[activeSession]) {
+                    users[activeSession].candidates = currentCandidates;
+                    localStorage.setItem('inv_users_db', JSON.stringify(users));
+                }
+            }
+        }
+
+        function renderResumeList() {
+            const list = document.getElementById('resume-list');
+            document.getElementById('resume-count-badge').innerText = `${currentCandidates.length} loaded`;
+
+            if (currentCandidates.length === 0) {
+                list.innerHTML = `<p class="text-slate-500 italic text-center py-2">No candidate resumes uploaded.</p>`;
+                return;
+            }
+
+            list.innerHTML = currentCandidates.map((c, i) => `
+                <div class="flex items-center justify-between bg-slate-950 p-2 rounded-xl border border-slate-800/80 animate-fade-in">
+                    <span class="truncate max-w-[200px] text-slate-300">${c.fileName}</span>
+                    <button onclick="removeCandidate(${i})" class="btn-animated text-rose-400 hover:text-rose-300 font-bold px-1">✕</button>
+                </div>
+            `).join('');
+        }
+
+        window.removeCandidate = async (index) => {
+            currentCandidates.splice(index, 1);
+            await syncCandidatesState();
+            renderResumeList();
+        };
+
+        window.clearCloudQueue = async () => {
+            currentCandidates = [];
+            await syncCandidatesState();
+            renderResumeList();
+            document.getElementById('results-wrapper').classList.add('hidden');
+            showToast("Queue cleared.");
+        };
+
+        // HELPER FUNCTION: EXTRACT RELEVANT SKILLS FROM TEXT
+        function extractSkillsFromText(text) {
+            const lowerText = text.toLowerCase();
+            const extracted = new Set();
+            
+            // Match against predefined tech skills database
+            KNOWN_SKILLS.forEach(skill => {
+                const escaped = skill.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+                const regex = new RegExp(`(?:^|[^a-z0-9])${escaped}(?:$|[^a-z0-9])`, 'i');
+                if (regex.test(lowerText)) {
+                    extracted.add(skill);
+                }
+            });
+
+            // Extract additional key capitalized or standalone words if skills DB doesn't cover all terms
+            const words = Array.from(new Set(lowerText.replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(w => w.length > 3)));
+            words.forEach(w => {
+                if (!["with", "from", "that", "this", "have", "will", "your", "team", "work", "role", "looking", "experience", "years", "candidate"].includes(w)) {
+                    if (KNOWN_SKILLS.includes(w)) extracted.add(w);
+                }
+            });
+
+            return Array.from(extracted);
+        }
+
+        // SKILL-BASED EVALUATION ENGINE LOGIC
+        window.runSmartEngine = () => {
+            const jdText = currentJD.text.trim();
+            if (!jdText) return alert("Please upload a Job Description file first.");
+            if (currentCandidates.length === 0) return alert("Please upload candidate resumes first.");
+
+            // Extract skills specifically instead of matching every word
+            const jdSkills = extractSkillsFromText(jdText);
+            
+            // Fallback if no specific tech skills are recognized
+            const targetSkills = jdSkills.length > 0 ? jdSkills : Array.from(new Set(jdText.toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(w => w.length > 3))).slice(0, 15);
+
+            evaluatedCache = currentCandidates.map(cand => {
+                const candSkills = new Set(extractSkillsFromText(cand.text));
+                const candTextLower = cand.text.toLowerCase();
+
+                const matched = targetSkills.filter(skill => {
+                    if (candSkills.has(skill)) return true;
+                    return candTextLower.includes(skill);
+                });
+
+                const missing = targetSkills.filter(skill => !matched.includes(skill));
+                const score = targetSkills.length ? Math.round((matched.length / targetSkills.length) * 100) : 0;
+
+                return {
+                    ...cand,
+                    score: score,
+                    matchedSkills: matched.slice(0, 6),
+                    missingSkills: missing.slice(0, 4)
+                };
+            });
+
+            evaluatedCache.sort((a, b) => b.score - a.score);
+
+            document.getElementById('results-wrapper').classList.remove('hidden');
+            renderTop3Insights();
+            renderAllResults(evaluatedCache);
+            showToast("Candidate skill evaluation completed.");
+        };
+
+        // RENDER TOP 3 INSIGHTS
+        function renderTop3Insights() {
+            const container = document.getElementById('top-3-cards');
+            const top3 = evaluatedCache.slice(0, 3);
+
+            const rankBadges = ['🥇 Gold Match', '🥈 Silver Match', '🥉 Bronze Match'];
+            const borderStyles = ['gold-border bg-amber-500/5', 'border-indigo-500/30 bg-indigo-500/5', 'border-slate-700 bg-slate-900/40'];
+
+            container.innerHTML = top3.map((c, i) => `
+                <div class="glass p-5 rounded-3xl space-y-4 ${borderStyles[i]} relative overflow-hidden transform hover:-translate-y-2 transition-all duration-300 animate-fade-in">
+                    <div class="flex justify-between items-start">
+                        <span class="text-[10px] font-bold px-2.5 py-1 rounded-full bg-slate-800 text-amber-300 border border-amber-500/20">${rankBadges[i]}</span>
+                        <span class="text-2xl font-black text-indigo-400">${c.score}%</span>
+                    </div>
+                    <div>
+                        <h5 class="font-extrabold text-white text-base">${c.fileName.replace(/\.[^/.]+$/, "")}</h5>
+                        <p class="text-[11px] text-slate-400 mt-0.5">Rating: ${c.score > 70 ? 'High Skill Fit Candidate' : 'Moderate Skill Match'}</p>
+                    </div>
+                    <div class="space-y-2 pt-2 border-t border-slate-800">
+                        <p class="text-[10px] font-bold uppercase text-slate-400">Key Skill Alignments:</p>
+                        <div class="flex flex-wrap gap-1">
+                            ${c.matchedSkills.length ? c.matchedSkills.map(s => `<span class="bg-indigo-500/15 text-indigo-300 text-[10px] px-2 py-0.5 rounded-md border border-indigo-500/20">+ ${s}</span>`).join('') : '<span class="text-[10px] text-slate-500 italic">No specific skills matched</span>'}
+                        </div>
+                    </div>
+                    <div class="space-y-1">
+                        <p class="text-[10px] font-bold uppercase text-slate-500">Skill Gaps:</p>
+                        <p class="text-[10px] text-slate-400 italic">${c.missingSkills.length ? 'Missing: ' + c.missingSkills.join(', ') : 'No gaps identified.'}</p>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // RENDER LEADERBOARD & HIRED STATUS TOGGLE
+        function renderAllResults(list) {
+            const area = document.getElementById('results-area');
+            if (!list.length) {
+                area.innerHTML = `<p class="text-xs text-slate-500 italic">No candidate records fit this view.</p>`;
+                return;
+            }
+
+            area.innerHTML = list.map((c, i) => `
+                <div class="glass p-4 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 transition-all hover:border-slate-700 hover:translate-x-1 ${c.hired ? 'border-emerald-500/40 bg-emerald-500/5' : ''} animate-fade-in">
+                    <div class="space-y-1">
+                        <div class="flex items-center space-x-2">
+                            <span class="font-bold text-slate-500 text-xs">#${i + 1}</span>
+                            <h4 class="font-bold text-white text-sm">${c.fileName.replace(/\.[^/.]+$/, "")}</h4>
+                            ${c.hired ? `<span class="bg-emerald-500/20 text-emerald-400 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-500/30">Hired</span>` : ''}
+                        </div>
+                        <div class="flex flex-wrap gap-1 pt-1">
+                            ${c.matchedSkills.length ? c.matchedSkills.map(s => `<span class="bg-slate-800 text-slate-300 text-[10px] px-2 py-0.5 rounded-md border border-slate-700">${s}</span>`).join('') : '<span class="text-[10px] text-slate-500 italic">No skills matched</span>'}
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-4 self-end sm:self-center">
+                        <div class="text-right">
+                            <div class="text-xl font-black text-indigo-400">${c.score}%</div>
+                            <div class="text-[9px] text-slate-500">Skill Match Score</div>
+                        </div>
+                        <button onclick="toggleHire('${c.id}')" class="btn-animated px-4 py-2 rounded-xl text-xs font-bold ${c.hired ? 'bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 border border-rose-500/30' : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/20'}">
+                            ${c.hired ? 'Cancel Hire' : 'Mark Hired'}
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // FILTER TABS LOGIC
+        window.filterResults = (filter) => {
+            document.getElementById('tab-filter-all').className = filter === 'all' ? 'btn-animated px-3 py-1.5 rounded-xl font-bold bg-indigo-600 text-white' : 'btn-animated px-3 py-1.5 rounded-xl font-bold glass text-slate-400 hover:text-white';
+            document.getElementById('tab-filter-top3').className = filter === 'top3' ? 'btn-animated px-3 py-1.5 rounded-xl font-bold bg-indigo-600 text-white' : 'btn-animated px-3 py-1.5 rounded-xl font-bold glass text-slate-400 hover:text-white';
+            document.getElementById('tab-filter-hired').className = filter === 'hired' ? 'btn-animated px-3 py-1.5 rounded-xl font-bold bg-indigo-600 text-white' : 'btn-animated px-3 py-1.5 rounded-xl font-bold glass text-slate-400 hover:text-white';
+
+            const top3Container = document.getElementById('top-3-insights-container');
+            if (filter === 'top3') {
+                top3Container.classList.remove('hidden');
+                renderAllResults(evaluatedCache.slice(0, 3));
+            } else if (filter === 'hired') {
+                top3Container.classList.add('hidden');
+                renderAllResults(evaluatedCache.filter(c => c.hired));
+            } else {
+                top3Container.classList.remove('hidden');
+                renderAllResults(evaluatedCache);
+            }
+        };
+
+        // TOGGLE HIRED STATUS
+        window.toggleHire = async (candId) => {
+            const cand = currentCandidates.find(c => c.id === candId);
+            if (cand) {
+                cand.hired = !cand.hired;
+                await syncCandidatesState();
+                window.runSmartEngine();
+            }
+        };
+
+        // HR ASSISTANT DRAWER LOGIC
+        window.toggleAssistantDrawer = () => {
+            const drawer = document.getElementById('assistant-drawer');
+            drawer.classList.toggle('translate-x-full');
+        };
+
+        window.applyAssistantPrompt = (type) => {
+            const resp = document.getElementById('assistant-response');
+            if (type === 'jd') {
+                resp.innerHTML = `<strong>JD Optimization Tip:</strong><br>Ensure your uploaded PDF contains explicit technical keywords like <em>React, Node.js, Python, SQL, REST API</em>. Clear skills sections yield accurate match scoring.`;
+            } else if (type === 'weights') {
+                resp.innerHTML = `<strong>Skill Weight Advice:</strong><br>Prioritize domain-specific technical frameworks over general traits to maintain consistent candidate evaluation scores.`;
+            }
+        };
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-message').innerText = msg;
+            toast.classList.remove('hidden');
+            setTimeout(() => toast.classList.add('hidden'), 3000);
+        }
+
+        lucide.createIcons();
+    </script>
+</body>
+</html>
